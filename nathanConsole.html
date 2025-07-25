@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nathan Console</title>
+    <style>
+        body {
+            background: #000;
+            color: #0f0;
+            margin: 0;
+            font-family: "Consolas", "Liberation Mono", "Menlo", monospace;
+        }
+        #console {
+            background: #000;
+            width: 100vw;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .input-line {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+        .prompt {
+            color: #0f0;
+            margin-right: 8px;
+            width: 1em;
+            text-align: right;
+            flex-shrink: 0;
+            font-size: 1em;
+            font-family: inherit;
+            line-height: 1.2;
+            height: 1.2em;
+        }
+        .input-container {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: flex-start;
+        }
+        .cmd-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: transparent;
+            font-size: 1em;
+            font-family: inherit;
+            width: 100%;
+            caret-color: #0f0;
+            position: absolute;
+            left: 0;
+            top: 0;
+            z-index: 2;
+            height: 1.2em;
+            line-height: 1.2;
+        }
+        .input-overlay {
+            position: absolute;
+            left: 0;
+            top: 0;
+            pointer-events: none;
+            width: 100%;
+            min-height: 1em;
+            font-size: 1em;
+            font-family: inherit;
+            white-space: pre;
+            z-index: 1;
+            line-height: 1.2;
+        }
+        .input-green {
+            color: #0f0;
+        }
+        .input-white {
+            color: #fff;
+        }
+        .output-line {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+        .output-indent {
+            width: 1em;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        .output {
+            color: #00eaff;
+            white-space: pre-wrap;
+            font-family: inherit;
+        }
+        /* Timer styling */
+        .timer-paragraph {
+            color: #ff2;
+            font-size: 1.2em;
+            margin-top: 12px;
+            font-family: "Consolas", "Liberation Mono", "Menlo", monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="console"></div>
+    <script>
+        const consoleDiv = document.getElementById('console');
+        let lastOutputDiv = null;
+
+        function clearConsole() {
+            consoleDiv.innerHTML = '';
+        }
+
+        function appendOutput(text) {
+            const outputLine = document.createElement('div');
+            outputLine.className = 'output-line';
+
+            const outputIndent = document.createElement('span');
+            outputIndent.className = 'output-indent';
+            outputIndent.textContent = '';
+
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'output';
+            outputDiv.textContent = text;
+
+            outputLine.appendChild(outputIndent);
+            outputLine.appendChild(outputDiv);
+            consoleDiv.appendChild(outputLine);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+
+            lastOutputDiv = outputDiv; // Save reference for replacement
+        }
+
+        function replacePreviousOutput(newText) {
+            if (lastOutputDiv) {
+                lastOutputDiv.textContent = newText;
+            }
+        }
+
+        function appendInputLine() {
+            const inputLine = document.createElement('div');
+            inputLine.className = 'input-line';
+
+            const prompt = document.createElement('span');
+            prompt.className = 'prompt';
+            prompt.textContent = '>';
+
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'input-container';
+
+            const input = document.createElement('input');
+            input.className = 'cmd-input';
+            input.autofocus = true;
+            input.spellcheck = false;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'input-overlay';
+
+            inputContainer.appendChild(input);
+            inputContainer.appendChild(overlay);
+
+            inputLine.appendChild(prompt);
+            inputLine.appendChild(inputContainer);
+            consoleDiv.appendChild(inputLine);
+
+            input.focus();
+
+            // Overlay coloring logic for input
+            function updateOverlay() {
+                const value = input.value;
+                let html = "";
+                if (value.length > 0) {
+                    const match = value.match(/^\s*(\S+)([\s\S]*)$/);
+                    if (match) {
+                        html += `<span class="input-green">${match[1]}</span>`;
+                        html += `<span class="input-white">${match[2]}</span>`;
+                    } else {
+                        html += `<span class="input-green">${value}</span>`;
+                    }
+                }
+                overlay.innerHTML = html || "&nbsp;";
+            }
+            updateOverlay();
+
+            input.addEventListener('input', updateOverlay);
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    const command = input.value;
+                    input.disabled = true;
+                    input.style.color = 'transparent';
+                    overlay.style.color = '#888';
+                    intepretCommand(command, appendInputLine);
+                }
+            });
+
+            // Auto scroll to bottom
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        function intepretCommand(command, onDone) {
+            if (command == "help") {
+                var data = `
+Welcome to Nathan Console help!
+List of commands:
+
+- help: shows this message
+  usage: help
+- clear: clears the console
+  usage: clear
+- link: opens a link
+  usage: link [link eg. https://example.com]
+- calc: Runs calculations
+  usages: calc [calculation eg. 1+1]
+          calc Math.[Advanced Calculation eg. Math.sin(1)]
+- exe: Executes one line Javascript code
+  usages: exe [code eg. alert('hi')]
+          exe output = [output eg. prompt("What is your name?")]
+- spellcheck: Checks spelling via api
+  usage: spellcheck [word eg. hi]
+- timer: countdown timer
+  usage: timer [m:ss eg. 1:00]
+- weather: Gives a brief description of the weather
+  usage: weather [city eg. Sydney]
+- shortcut: Opens a saved shortcut
+  usage: shortcut [name of shortcut eg. discord]
+- hide: hides the console
+  usage: hide
+- search: searches the web
+  usage: search [query eg. hi]
+- def: gives a word's definition via google
+  usage: def [word eg. hi]
+- solve: solves a mathematical equation
+  usage: solve [equation eg. 2x + 3 = 7]
+- ai: ask felo.ai
+  usage: ai [query eg. hi]
+                `
+                appendOutput(data);
+                if (onDone) onDone();
+                return 0;
+            }
+            if (command === "clear") {
+                clearConsole();
+                if (onDone) onDone();
+                return 0;
+            }
+            var cmd = command.split(" ")
+            var output = "";
+            if (cmd[0] == "link") {
+                window.open(cmd[1], '_blank');
+                output = "Opening link: " + cmd[1];
+                appendOutput(output);
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "calc") {
+                var expr = command.slice(5); // everything after 'calc '
+                try {
+                    var result = eval(expr);
+                    output = result;
+                } catch(error) {
+                    output = "ERR:" + error;
+                }
+                appendOutput(output);
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "exe") {
+                var code = command.slice(4); // everything after 'exe '
+                try {
+                    var result = eval(code);
+                    output = result;
+                } catch(error) {
+                    output = "ERR:" + error;
+                }
+                appendOutput(output);
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "spellcheck") {
+                appendOutput("Fetching response...");
+                var p = cmd.slice(1).join(" ");
+                var myHeaders = new Headers();
+                myHeaders.append('apikey', 'R3zFrTFBAa6K7tznFHUuA256giC0gxuq');
+                var requestOptions = {
+                  method: 'GET',
+                  redirect: 'follow',
+                  headers: myHeaders,
+                };
+                fetch(`https://api.apilayer.com/spell/spellchecker?q=${encodeURIComponent(p)}`, requestOptions)
+                  .then((response) => response.json())
+                  .then((result) => {
+                    if (result.corrections && result.corrections.length > 0) {
+                      replacePreviousOutput(result.corrections[0].best_candidate);
+                    } else {
+                      replacePreviousOutput('No corrections found!');
+                    }
+                    if (onDone) onDone();
+                  })
+                  .catch((error) => {
+                      replacePreviousOutput('Spellcheck error!');
+                      if (onDone) onDone();
+                  });
+                return 0;
+            }
+            if (cmd[0] == "timer") {
+                // Timer expects time in cmd[1] as m:ss
+                var timerLength = (cmd[1] || "0:10").split(":");
+                var minutes = parseInt(timerLength[0], 10) || 0;
+                var seconds = parseInt(timerLength[1], 10) || 0;
+
+                // Remove existing timer paragraph if present (no longer needed)
+                
+                // Output the initial timer value using appendOutput (so lastOutputDiv is set)
+                let mStr = minutes.toString();
+                let sStr = seconds < 10 ? "0" + seconds : seconds.toString();
+                appendOutput(mStr + ":" + sStr);
+
+                function timerTick() {
+                    if (minutes === 0 && seconds === 0) {
+                        replacePreviousOutput("0:00");
+                        clearInterval(timerInterval);
+                        setTimeout(() => {
+                            replacePreviousOutput("⏰ Time's up!");
+                        }, 200);
+                        setTimeout(() => {
+                            // Optionally remove the timer from console after a short delay
+                            if (lastOutputDiv && lastOutputDiv.parentElement) {
+                                lastOutputDiv.parentElement.remove();
+                            }
+                        }, 2000);
+                        alert("Time's up!");
+                        return;
+                    }
+                    if (seconds === 0) {
+                        if (minutes > 0) {
+                            minutes--;
+                            seconds = 59;
+                        } else {
+                            seconds = 0;
+                        }
+                    } else {
+                        seconds--;
+                    }
+                    let mStr = minutes.toString();
+                    let sStr = seconds < 10 ? "0" + seconds : seconds.toString();
+                    replacePreviousOutput(mStr + ":" + sStr);
+                }
+
+                var timerInterval = setInterval(timerTick, 1000);
+
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "weather") {
+                appendOutput("Fetching response...")
+                url = "http://api.weatherstack.com/current?access_key=9589561b569c3da0e3d37453b04831db&query=" + cmd[1]
+                fetch(url)
+                  .then((response) => response.json())
+                  .then((result) => {
+                    replacePreviousOutput(result.current.weather_descriptions[0]);
+                    if (onDone) onDone();
+                  })
+                return 0;
+            }
+            if (cmd[0] == "shortcut") {
+                var link = "about:blank"
+                var shortcut = cmd[1]
+                if (shortcut == "teams") {
+                    link = "https://teams.microsoft.com/v2/"
+                }
+                if (shortcut == "github") {
+                    link = "https://github.com/"
+                }
+                if (shortcut == "discord") {
+                    link = "https://discord.com/channels/@me/"
+                }
+                if (shortcut == "classroom") {
+                    link = "https://classroom.google.com/u/0/h"
+                }
+                if (shortcut == "det") {
+                    link = "https://detnsw.net"
+                }
+                if (shortcut == "copilot") {
+                    link = "https://copilot.microsoft.com/"
+                }
+                if (shortcut == "nathanconsole") {
+                    link = "file:///C:/Users/natha/OneDrive/Documents/Programming/Web%20Development/Nathan%20Console/nathanConsole.html"
+                }
+                appendOutput(`Opened "${shortcut}".`)
+                window.open(link, '_blank');
+                if (onDone) onDone();
+                return 0;
+            }
+            if (command == "hide") {
+                document.write("<break>")
+            }
+            if (cmd[0] == "search") {
+                var searchquery = command.slice(7);
+                window.open("https://www.google.com/search?q=" + encodeURIComponent(searchquery), '_blank');
+                appendOutput("Searching for: " + searchquery)
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "def") {
+                var word = command.slice(4);
+                window.open("https://www.google.com/search?q=define%20" + encodeURIComponent(word), '_blank');
+                appendOutput("Defining: " + word)
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "solve") {
+                var equation = command.slice(6);
+                window.open("https://www.google.com/search?q=solve%20" + encodeURIComponent(equation), '_blank');
+                appendOutput("Solving: " + equation)
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "ai") {
+                var searchquery = command.slice(3);
+                window.open("https://felo.ai/search?q=" + encodeURIComponent(searchquery), '_blank');
+                appendOutput("Asking AI: " + searchquery)
+                if (onDone) onDone();
+                return 0;
+            }
+            if (cmd[0] == "gd") {
+                var searchquery = command.slice(3);
+                window.open("https://docs.godotengine.org/en/stable/search.html?q=" + encodeURIComponent(searchquery), '_blank');
+                appendOutput("Searching Godot Docs: " + searchquery)
+                if (onDone) onDone();
+                return 0;    
+            }
+            if (command == "ethan wang") {
+                appendOutput("is gay")
+                if (onDone) onDone();
+                return 0;    
+            }
+
+            output = command;
+            appendOutput(String(output));
+            if (onDone) onDone();
+        }
+
+        // Start the console
+        appendInputLine();
+    </script>
+</body>
+</html>
